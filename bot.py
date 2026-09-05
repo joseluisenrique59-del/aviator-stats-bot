@@ -1,48 +1,52 @@
-import os
+    import os
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from statistics import mean
 
-from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(level=logging.INFO)
 
 results = {}
+
+
+def menu():
+    keyboard = [
+        [
+            InlineKeyboardButton("📊 Stats", callback_data="stats"),
+            InlineKeyboardButton("➕ Add", callback_data="add"),
+        ],
+        [
+            InlineKeyboardButton("🕐 Last", callback_data="last"),
+            InlineKeyboardButton("🗑️ Reset", callback_data="reset"),
+        ],
+        [InlineKeyboardButton("📖 Help", callback_data="help")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✈️ Byenveni nan Aviator Stats Bot!\n\n"
-        "Mwen ede w analize multiplier ou antre yo.\n\n"
-        "Kòmand:\n"
-        "/add 1.50 - ajoute yon multiplier\n"
-        "/stats - wè estatistik yo\n"
-        "/last - wè dènye rezilta yo\n"
-        "/reset - efase rezilta yo\n"
-        "/help - èd\n\n"
-        "⚠️ Estatistik yo pa garanti pwochen rezilta Aviator."
+        "Chwazi yon bouton anba a:",
+        reply_markup=menu(),
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 Kijan pou itilize bot la:\n\n"
-        "1️⃣ /add 1.25\n"
-        "2️⃣ /add 2.40\n"
-        "3️⃣ /add 1.08\n\n"
-        "Apre sa itilize /stats pou wè analiz la."
+        "/add 1.25 — ajoute multiplier\n"
+        "/stats — wè estatistik\n"
+        "/last — wè dènye rezilta yo\n"
+        "/reset — efase rezilta yo\n\n"
+        "⚠️ Estatistik yo pa predi pwochen wonn lan.",
+        reply_markup=menu(),
     )
 
 
@@ -51,31 +55,28 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         await update.message.reply_text(
-            "❌ Mete multiplier la.\n"
-            "Egzanp: /add 2.35"
+            "❌ Egzanp: /add 2.35",
+            reply_markup=menu(),
         )
         return
 
     try:
         value = float(context.args[0])
-
         if value < 1:
             raise ValueError
-
     except ValueError:
         await update.message.reply_text(
-            "❌ Multiplier la dwe yon nimewo ≥ 1.\n"
-            "Egzanp: /add 1.75"
+            "❌ Mete yon nimewo ≥ 1.\nEgzanp: /add 1.75",
+            reply_markup=menu(),
         )
         return
 
     results.setdefault(user_id, []).append(value)
 
-    total = len(results[user_id])
-
     await update.message.reply_text(
         f"✅ {value:.2f}x ajoute.\n"
-        f"📊 Total wonn: {total}"
+        f"📊 Total wonn: {len(results[user_id])}",
+        reply_markup=menu(),
     )
 
 
@@ -85,16 +86,16 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not data:
         await update.message.reply_text(
-            "📭 Ou poko ajoute okenn multiplier."
+            "📭 Ou poko ajoute okenn multiplier.",
+            reply_markup=menu(),
         )
         return
 
     avg = mean(data)
     lowest = min(data)
     highest = max(data)
-
     under_2 = sum(x < 2 for x in data)
-    under_2_percent = (under_2 / len(data)) * 100
+    percent = under_2 / len(data) * 100
 
     await update.message.reply_text(
         "📊 AVIATOR STATISTICS\n\n"
@@ -102,9 +103,9 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📈 Mwayèn: {avg:.2f}x\n"
         f"⬇️ Pi ba: {lowest:.2f}x\n"
         f"⬆️ Pi wo: {highest:.2f}x\n"
-        f"🔻 Anba 2x: {under_2} ({under_2_percent:.1f}%)\n\n"
-        "⚠️ Sa se estatistik istorik sèlman; "
-        "li pa predi pwochen wonn lan."
+        f"🔻 Anba 2x: {under_2} ({percent:.1f}%)\n\n"
+        "⚠️ Sa se estatistik istorik sèlman.",
+        reply_markup=menu(),
     )
 
 
@@ -114,18 +115,20 @@ async def last(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not data:
         await update.message.reply_text(
-            "📭 Ou poko gen okenn rezilta."
+            "📭 Ou poko gen okenn rezilta.",
+            reply_markup=menu(),
         )
         return
 
-    recent = data[-10:]
-
     text = "🕐 10 DÈNYE MULTIPLIER YO\n\n"
 
-    for i, value in enumerate(recent, start=1):
+    for i, value in enumerate(data[-10:], 1):
         text += f"{i}. {value:.2f}x\n"
 
-    await update.message.reply_text(text)
+    await update.message.reply_text(
+        text,
+        reply_markup=menu(),
+    )
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -133,54 +136,49 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     results[user_id] = []
 
     await update.message.reply_text(
-        "🗑️ Tout rezilta ou yo efase."
+        "🗑️ Tout rezilta ou yo efase.",
+        reply_markup=menu(),
     )
 
 
-class HealthHandler(BaseHTTPRequestHandler):
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Aviator Stats Bot is running!")
+    user_id = query.from_user.id
+    data = results.get(user_id, [])
 
-    def log_message(self, format, *args):
-        return
+    if query.data == "stats":
+        if not data:
+            text = "📭 Ou poko ajoute okenn multiplier."
+        else:
+            avg = mean(data)
+            lowest = min(data)
+            highest = max(data)
+            under_2 = sum(x < 2 for x in data)
+            percent = under_2 / len(data) * 100
 
+            text = (
+                "📊 AVIATOR STATISTICS\n\n"
+                f"🎯 Wonn: {len(data)}\n"
+                f"📈 Mwayèn: {avg:.2f}x\n"
+                f"⬇️ Pi ba: {lowest:.2f}x\n"
+                f"⬆️ Pi wo: {highest:.2f}x\n"
+                f"🔻 Anba 2x: {under_2} ({percent:.1f}%)"
+            )
 
-def start_web_server():
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), HealthHandler)
-    print(f"🌐 Web server ap mache sou port {PORT}")
-    server.serve_forever()
+        await query.edit_message_text(text, reply_markup=menu())
 
+    elif query.data == "add":
+        await query.edit_message_text(
+            "➕ Ekri:\n\n/add 1.50",
+            reply_markup=menu(),
+        )
 
-def start_bot():
-    if not TOKEN:
-        raise RuntimeError("BOT_TOKEN pa defini.")
-
-    app = Application.builder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("add", add))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(CommandHandler("last", last))
-    app.add_handler(CommandHandler("reset", reset))
-
-    print("🤖 Bot la ap mache...")
-    app.run_polling()
-
-
-def main():
-    web_thread = threading.Thread(
-        target=start_web_server,
-        daemon=True
-    )
-    web_thread.start()
-
-    start_bot()
-
-
-if __name__ == "__main__":
-    main()
+    elif query.data == "last":
+        if not data:
+            text = "📭 Ou poko gen okenn rezilta."
+        else:
+            text = "🕐 10 DÈNYE MULTIPLIER YO\n\n"
+            for i, value in enumerate(data[-10:], 1):
+                text += f
