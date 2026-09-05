@@ -1,4 +1,4 @@
-    import os
+import os
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -181,4 +181,70 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text = "🕐 10 DÈNYE MULTIPLIER YO\n\n"
             for i, value in enumerate(data[-10:], 1):
-                text += f
+                text += f"{i}. {value:.2f}x\n"
+
+        await query.edit_message_text(text, reply_markup=menu())
+
+    elif query.data == "reset":
+        results[user_id] = []
+        await query.edit_message_text(
+            "🗑️ Tout rezilta yo efase.",
+            reply_markup=menu(),
+        )
+
+    elif query.data == "help":
+        await query.edit_message_text(
+            "📖 /add 1.25 — ajoute\n"
+            "/stats — estatistik\n"
+            "/last — dènye rezilta\n"
+            "/reset — efase",
+            reply_markup=menu(),
+        )
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Aviator Stats Bot is running!")
+
+    def log_message(self, format, *args):
+        return
+
+
+def start_web_server():
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), HealthHandler)
+    server.serve_forever()
+
+
+def start_bot():
+    if not TOKEN:
+        raise RuntimeError("BOT_TOKEN pa defini.")
+
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("add", add))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("last", last))
+    app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    print("🤖 Bot la ap mache...")
+    app.run_polling()
+
+
+def main():
+    threading.Thread(
+        target=start_web_server,
+        daemon=True
+    ).start()
+
+    start_bot()
+
+
+if __name__ == "__main__":
+    main()
